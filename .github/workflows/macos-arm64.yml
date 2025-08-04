@@ -81,7 +81,7 @@ jobs:
         run: |
           PYTHON_BIN_PATH=$(which python3)
           export PYTHON_BIN_PATH
-          yes "" | "${PYTHON_BIN_PATH}" configure.py
+          echo -e '\nN\nN\n\nN' | "${PYTHON_BIN_PATH}" configure.py
 
       - name: Run bazel build on MacOS
         run: |
