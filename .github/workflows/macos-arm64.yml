@@ -91,7 +91,6 @@ jobs:
       - name: Run bazel build on MacOS
         run: |
           bazel test \
-            --action_env=DEVELOPER_DIR="$DEVELOPER_DIR" \
             -c opt \
             -s \
             --apple_platform_type=ios \
