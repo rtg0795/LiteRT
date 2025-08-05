@@ -10,6 +10,10 @@ on:
     - cron: "0 10 * * *"  # Run at 2am PST (10am UTC) every day to refresh the cache.
   workflow_dispatch:  # Manual trigger
     inputs:
+      TENSORFLOW_SUBMODULE_COMMIT:
+        description: 'The commit hash of the TensorFlow submodule to checkout. If empty, it will use the default.'
+        type: string
+        default: ''
       REFRESH_CACHE:
         description: 'Refresh cache to remove unused files'
         type: boolean
@@ -76,6 +80,29 @@ jobs:
           echo "Cache Hit: ${{ steps.bazel-cache.outputs.cache-hit }}"
           echo "Cache Primary Key: ${{ steps.bazel-cache.outputs.cache-primary-key }}"
           echo "Cache Matched Key: ${{ steps.bazel-cache.outputs.cache-matched-key }}"
+      - name: Configure TensorFlow Submodule Version
+        # This step handles both the specific commit override and the "latest HEAD" update.
+        run: |
+          SUBMODULE_PATH="third_party/tensorflow"
+          TARGET_COMMIT="${{ inputs.TENSORFLOW_SUBMODULE_COMMIT }}"
+
+          if [[ -n "$TARGET_COMMIT" ]]; then
+            echo "--- Manual Commit Specified ---"
+            echo "Attempting to checkout specific commit '$TARGET_COMMIT' for $SUBMODULE_PATH..."
+            cd "$SUBMODULE_PATH" || { echo "Error: Could not navigate to $SUBMODULE_PATH"; exit 1; }
+            git checkout "$TARGET_COMMIT" || { echo "Error: Failed to checkout $TARGET_COMMIT."; exit 1; }
+            cd - > /dev/null # Go back to the original directory (main repo root)
+            echo "Successfully checked out $SUBMODULE_PATH to $TARGET_COMMIT."
+          else
+            echo "--- Updating to Latest HEAD ---"
+            echo "No specific commit provided. Updating $SUBMODULE_PATH to its remote HEAD..."
+            # This fetches the latest from the submodule's default branch (e.g., 'main' or 'master')
+            # and checks it out, but does NOT create a commit in your main repository.
+            git submodule update --remote "$SUBMODULE_PATH" || { echo "Error: Failed to update $SUBMODULE_PATH to remote HEAD."; exit 1; }
+            echo "Successfully updated $SUBMODULE_PATH to its latest HEAD."
+          fi
+          # Display the final commit of the TensorFlow submodule
+          echo "Current TensorFlow submodule commit: $(cd $SUBMODULE_PATH && git rev-parse HEAD)"
 
       - name: Configure tensorflow & python path
         run: |
