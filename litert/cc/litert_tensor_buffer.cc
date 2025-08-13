@@ -28,8 +28,6 @@
 
 #if LITERT_HAS_OPENCL_SUPPORT
 #include <CL/cl.h>
-#else
-typedef struct _cl_mem* cl_mem;
 #endif
 
 namespace litert {
@@ -117,6 +115,20 @@ Expected<TensorBuffer> TensorBuffer::CreateFromClBuffer(
 #endif
 }
 
+#if LITERT_HAS_METAL_SUPPORT
+Expected<TensorBuffer> TensorBuffer::CreateFromMetalBuffer(
+    LiteRtEnvironment env, const RankedTensorType& tensor_type,
+    LiteRtTensorBufferType buffer_type, void* metal_buffer,
+    size_t size_bytes) {
+  LiteRtTensorBuffer tensor_buffer;
+  auto litert_tensor_type = static_cast<LiteRtRankedTensorType>(tensor_type);
+  LITERT_RETURN_IF_ERROR(LiteRtCreateTensorBufferFromMetalMemory(
+      env, &litert_tensor_type, buffer_type, metal_buffer, size_bytes,
+      /*deallocator=*/nullptr, &tensor_buffer));
+  return TensorBuffer(tensor_buffer, OwnHandle::kYes);
+}
+#endif  // LITERT_HAS_METAL_SUPPORT
+
 Expected<TensorBuffer> TensorBuffer::CreateFromGlBuffer(
     LiteRtEnvironment env, const RankedTensorType& tensor_type,
     LiteRtGLenum target, LiteRtGLuint id, size_t size_bytes, size_t offset) {
@@ -156,6 +168,24 @@ bool TensorBuffer::IsWebGpuMemory() const {
     return false;
   }
   return ::IsWebGpuMemory(tensor_buffer_type);
+}
+
+bool TensorBuffer::IsMetalMemory() const {
+  LiteRtTensorBufferType tensor_buffer_type;
+  if (auto status = LiteRtGetTensorBufferType(Get(), &tensor_buffer_type);
+      status != kLiteRtStatusOk) {
+    return false;
+  }
+  return ::IsMetalMemory(tensor_buffer_type);
+}
+
+bool TensorBuffer::IsVulkanMemory() const {
+  LiteRtTensorBufferType tensor_buffer_type;
+  if (auto status = LiteRtGetTensorBufferType(Get(), &tensor_buffer_type);
+      status != kLiteRtStatusOk) {
+    return false;
+  }
+  return ::IsVulkanMemory(tensor_buffer_type);
 }
 
 }  // namespace litert

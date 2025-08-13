@@ -31,6 +31,7 @@ package_group(
         "//litert/integration_test/...",
         "//litert/kotlin/...",
         "//litert/python/...",
+        "//litert/rust/...",
         "//litert/test/...",
         "//litert/sdk_util/...",
         # When litert_lm_link_capi_so=false
@@ -79,7 +80,10 @@ package_group(
     packages = [
         # copybara:uncomment "INTERNAL_IMAGE_COLLECTION_INTEGRATION/...",
         # copybara:uncomment "//platforms/darwinn/compiler/...",
+        # copybara:uncomment "//third_party/darwinn/tflite/...",
+        # copybara:uncomment "@mediapipe//mediapipe/examples/android/...",
         # copybara:uncomment "@mediapipe//mediapipe/tasks/javatests/...",
+        # copybara:uncomment "//third_party/odml/infra/ml_drift_delegate/...",
         "//litert/runtime/...",
         "//litert/samples/...",
         "//litert/tools/...",
@@ -122,4 +126,16 @@ package_group(
 exports_files(
     glob(["*.gwsq"]),
     visibility = ["//visibility:public"],
+)
+
+# If litert_link_capi_so is not defined, each target links LiteRT C API either statically or
+# dynamically based on its own requirements.
+config_setting(
+    name = "litert_link_capi_so",
+    values = {"define": "litert_link_capi_so=true"},
+)
+
+config_setting(
+    name = "litert_link_capi_static",
+    values = {"define": "litert_link_capi_so=false"},
 )

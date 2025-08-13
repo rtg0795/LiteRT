@@ -19,13 +19,16 @@
 
 #include "absl/types/span.h"  // from @com_google_absl
 #include "litert/c/litert_common.h"
+#include "litert/c/litert_custom_tensor_buffer.h"
 #include "litert/c/litert_gl_types.h"
-#include "litert/c/litert_logging.h"
 #include "litert/c/litert_model.h"
 #include "litert/c/litert_tensor_buffer_types.h"
-#include "litert/cc/litert_expected.h"
 #include "litert/cc/litert_macros.h"
 #include "litert/runtime/tensor_buffer.h"
+
+#if LITERT_HAS_METAL_SUPPORT
+#include "litert/runtime/metal_memory.h"
+#endif  // LITERT_HAS_METAL_SUPPORT
 
 #if LITERT_HAS_OPENCL_SUPPORT
 #include <CL/cl.h>
@@ -175,6 +178,36 @@ LiteRtStatus LiteRtGetTensorBufferOpenClMemory(LiteRtTensorBuffer tensor_buffer,
 }
 #endif  // LITERT_HAS_OPENCL_SUPPORT
 
+#if LITERT_HAS_METAL_SUPPORT
+LiteRtStatus LiteRtCreateTensorBufferFromMetalMemory(
+    LiteRtEnvironment env, const LiteRtRankedTensorType* tensor_type,
+    LiteRtTensorBufferType buffer_type, void* metal_buffer,
+    size_t metal_buffer_size, LiteRtMetalDeallocator deallocator,
+    LiteRtTensorBuffer* buffer) {
+  if (!tensor_type || !buffer) {
+    return kLiteRtStatusErrorInvalidArgument;
+  }
+  LITERT_ASSIGN_OR_RETURN(auto created_tensor_buffer,
+                          LiteRtTensorBufferT::CreateFromMetalMemory(
+                              env, *tensor_type, buffer_type, metal_buffer,
+                              metal_buffer_size, deallocator));
+  *buffer = created_tensor_buffer.release();
+  return kLiteRtStatusOk;
+}
+
+LiteRtStatus LiteRtGetTensorBufferMetalMemory(
+    LiteRtTensorBuffer tensor_buffer, void** metal_buffer_addr) {
+  if (!tensor_buffer || !metal_buffer_addr) {
+    return kLiteRtStatusErrorInvalidArgument;
+  }
+  LITERT_ASSIGN_OR_RETURN(auto metal_memory, tensor_buffer->GetMetalMemory());
+  void* metal_buffer_ptr = metal_memory->GetMemoryPtr();
+  *metal_buffer_addr = metal_buffer_ptr;
+  return kLiteRtStatusOk;
+}
+
+#endif  // LITERT_HAS_METAL_SUPPORT
+
 #if LITERT_HAS_FASTRPC_SUPPORT
 LiteRtStatus LiteRtCreateTensorBufferFromFastRpcBuffer(
     const LiteRtRankedTensorType* tensor_type, void* fastrpc_buffer_addr,
@@ -274,19 +307,32 @@ LiteRtStatus LiteRtGetTensorBufferGlTexture(
 
 #if LITERT_HAS_WEBGPU_SUPPORT
 // Return an error if the backing buffer is not a WebGpu buffer.
-LiteRtStatus LiteRtGetTensorBufferWebGpuBuffer(LiteRtTensorBuffer tensor_buffer,
-                                               WGPUBuffer* webgpu_buffer_addr) {
-  if (!tensor_buffer || !webgpu_buffer_addr) {
+LiteRtStatus LiteRtGetTensorBufferWebGpuBuffer(
+    LiteRtTensorBuffer tensor_buffer, HwMemoryHandle* hw_memory_handle) {
+  if (!tensor_buffer || !hw_memory_handle) {
     return kLiteRtStatusErrorInvalidArgument;
   }
 
   LITERT_ASSIGN_OR_RETURN(auto webgpu_buffer, tensor_buffer->GetCustomBuffer());
 
-  *webgpu_buffer_addr =
-      reinterpret_cast<WGPUBuffer>(webgpu_buffer->hw_buffer_handle());
+  *hw_memory_handle = webgpu_buffer->hw_buffer_handle();
   return kLiteRtStatusOk;
 }
 #endif  // LITERT_HAS_WEBGPU_SUPPORT
+
+#if LITERT_HAS_VULKAN_SUPPORT
+LiteRtStatus LiteRtGetTensorBufferVulkanMemory(
+    LiteRtTensorBuffer tensor_buffer, HwMemoryHandle* hw_memory_handle) {
+  if (!tensor_buffer || !hw_memory_handle) {
+    return kLiteRtStatusErrorInvalidArgument;
+  }
+
+  LITERT_ASSIGN_OR_RETURN(auto custom_buffer, tensor_buffer->GetCustomBuffer());
+
+  *hw_memory_handle = custom_buffer->hw_buffer_handle();
+  return kLiteRtStatusOk;
+}
+#endif  // LITERT_HAS_VULKAN_SUPPORT
 
 LiteRtStatus LiteRtCreateManagedTensorBuffer(
     LiteRtEnvironment env, LiteRtTensorBufferType buffer_type,

@@ -19,6 +19,7 @@
 #include <stddef.h>
 
 #include "litert/c/litert_common.h"
+#include "litert/c/litert_custom_tensor_buffer.h"
 #include "litert/c/litert_model.h"
 #if LITERT_HAS_OPENCL_SUPPORT
 #include <CL/cl.h>
@@ -43,9 +44,6 @@ typedef struct AHardwareBuffer AHardwareBuffer;
 extern "C" {
 #endif  // __cplusplus
 
-typedef struct WGPUBufferImpl* WGPUBuffer;
-typedef struct WGPUTextureImpl* WGPUTexture;
-
 #define LITERT_HOST_MEMORY_BUFFER_ALIGNMENT 64
 
 typedef void (*LiteRtHostMemoryDeallocator)(void* addr);
@@ -59,7 +57,7 @@ typedef void (*LiteRtGlTextureDeallocator)(void* gl_texture_addr);
 typedef void (*LiteRtWebGpuBufferDeallocator)(void* webgpu_buffer_addr);
 typedef void (*LiteRtWebGpuTextureDeallocator)(void* webgpu_texture_addr);
 typedef void (*LiteRtMetalDeallocator)(void* metal_buffer_addr);
-
+typedef void (*LiteRtVulkanMemoryDeallocator)(void* vulkan_memory_addr);
 
 // /////////////////////////////////////////////////////////////////////////////
 // TensorBuffers.
@@ -228,10 +226,34 @@ LiteRtStatus LiteRtGetTensorBufferGlTexture(
 
 #if LITERT_HAS_WEBGPU_SUPPORT
 // Return an error if the backing buffer is not a WebGpu buffer.
-LiteRtStatus LiteRtGetTensorBufferWebGpuBuffer(LiteRtTensorBuffer tensor_buffer,
-                                               WGPUBuffer* webgpu_buffer_addr);
-
+LiteRtStatus LiteRtGetTensorBufferWebGpuBuffer(
+    LiteRtTensorBuffer tensor_buffer, HwMemoryHandle* hw_memory_handle);
 #endif  // LITERT_HAS_WEBGPU_SUPPORT
+
+#if LITERT_HAS_METAL_SUPPORT
+// Create a tensor buffer from an existing Metal memory of a given size, with
+// optional metal memory buffer deallocator (it can be NULL).
+//
+// Caller owns the returned LiteRtTensorBuffer. The owner is responsible for
+// calling LiteRtDestroyTensorBuffer() to release the object.
+// NULL deallocator means that the Metal buffer is not managed by the tensor
+// buffer and therefore must be released separately by the caller.
+LiteRtStatus LiteRtCreateTensorBufferFromMetalMemory(
+    LiteRtEnvironment env, const LiteRtRankedTensorType* tensor_type,
+    LiteRtTensorBufferType buffer_type, void* metal_buffer_addr,
+    size_t metal_buffer_size, LiteRtMetalDeallocator deallocator,
+    LiteRtTensorBuffer* buffer);
+
+// Return an error if the backing buffer is not a Metal memory.
+LiteRtStatus LiteRtGetTensorBufferMetalMemory(LiteRtTensorBuffer tensor_buffer,
+                                              void** metal_buffer_addr);
+#endif  // LITERT_HAS_METAL_SUPPORT
+
+#if LITERT_HAS_VULKAN_SUPPORT
+// Return an error if the backing buffer is not a Vulkan device memory.
+LiteRtStatus LiteRtGetTensorBufferVulkanMemory(
+    LiteRtTensorBuffer tensor_buffer, HwMemoryHandle* hw_memory_handle);
+#endif  // LITERT_HAS_VULKAN_SUPPORT
 
 // Create a managed TensorBuffer for a given size and type.
 //

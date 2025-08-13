@@ -12,7 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-load("//litert/build_common:tfl_model_gen.bzl", "tfl_model_gen")
+load("//litert/build_common:symlink_files.bzl", "symlink_files")  # @unused
+load("//litert/build_common:tfl_model_gen.bzl", "tfl_model_gen")  # @unused
 
 package(
     # copybara:uncomment default_applicable_licenses = ["@org_tensorflow//tensorflow:license"],
@@ -21,10 +22,22 @@ package(
     ],
 )
 
-tfl_model_gen(
+# copybara:uncomment_begin(internal)
+# tfl_model_gen(
+#     name = "mlir_test_data",
+#     srcs = glob(["testdata/*.mlir"]),
+# )
+# copybara:uncomment_end
+
+# copybara:comment_begin(external)
+symlink_files(
     name = "mlir_test_data",
-    srcs = glob(["testdata/*.mlir"]),
+    srcs = ["@models"],
+    declared_outputs = [f.replace(".mlir", ".tflite") for f in glob(["testdata/*.mlir"])],
+    dst = "testdata",
+    flatten = True,
 )
+# copybara:comment_end
 
 filegroup(
     name = "tflite_test_data",
@@ -175,7 +188,10 @@ cc_library(
         "//litert/cc:litert_c_types_printing",
         "//litert/cc:litert_element_type",
         "//litert/cc:litert_expected",
+        "//litert/cc:litert_macros",
         "//litert/cc:litert_model",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/strings:string_view",
@@ -225,7 +241,10 @@ cc_library(
         "//litert/cc:litert_c_types_printing",
         "//litert/cc:litert_element_type",
         "//litert/cc:litert_expected",
+        "//litert/cc:litert_macros",
         "//litert/cc:litert_model",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/strings:str_format",
         "@com_google_absl//absl/strings:string_view",
@@ -250,7 +269,9 @@ cc_library(
         "//litert/cc:litert_layout",
         "//litert/cc:litert_macros",
         "//litert/cc:litert_model",
+        "//litert/cc:litert_rng",
         "//litert/cc:litert_tensor_buffer",
+        "@com_google_absl//absl/log:absl_check",
         "@com_google_absl//absl/types:span",
     ],
 )
@@ -264,6 +285,7 @@ cc_test(
         ":simple_buffer",
         "//litert/cc:litert_element_type",
         "//litert/cc:litert_model",
+        "//litert/cc:litert_rng",
         "@com_google_absl//absl/types:span",
         "@com_google_googletest//:gtest_main",
     ],

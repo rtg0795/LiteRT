@@ -153,6 +153,94 @@ LiteRtStatus LiteRtCompiledModelIsFullyAccelerated(
 // Gets the profiler for the model. CompiledModel owns the profiler.
 LiteRtStatus LiteRtCompiledModelGetProfiler(LiteRtCompiledModel compiled_model,
                                             LiteRtProfiler* profiler);
+
+// Resizes the specified input tensor to support dynamic shapes.
+//
+// This function allows resizing input tensors at runtime, similar to TFLite's
+// ResizeInputTensor API. After calling this function, the compiled model will
+// reallocate internal buffers as needed to accommodate the new tensor shape.
+//
+// Parameters:
+// - compiled_model: the target `LiteRtCompiledModel` object.
+// - signature_index: the index of the signature in `LiteRtModel`.
+// - input_index: the index of the input tensor in the signature (subgraph).
+// - dims: A span containing the new dimensions for the input tensor.
+//
+// Note: After resizing, the previously obtained buffer requirements may be
+// invalidated. Callers should re-query buffer requirements if needed.
+//
+// Returns:
+// - kLiteRtStatusOk: Success.
+// - kLiteRtStatusErrorInvalidArgument: Invalid parameters.
+// - kLiteRtStatusErrorRuntimeFailure: Failed to resize tensor.
+// - kLiteRtStatusErrorUnimplemented: Dynamic shape is not supported for the
+//   given model or delegate.
+LiteRtStatus LiteRtCompiledModelResizeInputTensor(
+    LiteRtCompiledModel compiled_model, LiteRtParamIndex signature_index,
+    LiteRtParamIndex input_index, const int* dims, size_t dims_size);
+
+// Sets a dispatch annotation on the compiled model. These annotations will be
+// propagated to dispatch graphs when they are created during model execution.
+// The annotations provide runtime hints and metadata that can be used by
+// hardware accelerators for optimization.
+//
+// Parameters:
+// - compiled_model: the target `LiteRtCompiledModel` object.
+// - key: the annotation key (must not be null).
+// - value: the annotation value (must not be null).
+//
+// Example annotations:
+// - "priority": "high|medium|low" - execution priority hints
+// - "memory_type": "shared|dedicated" - memory allocation preferences
+// - "accelerator": "npu|gpu|dsp" - preferred hardware accelerator
+// - "precision": "fp32|fp16|int8" - computation precision requirements
+LiteRtStatus LiteRtCompiledModelSetDispatchAnnotation(
+    LiteRtCompiledModel compiled_model, const char* key, const char* value);
+
+// Gets a dispatch annotation from the compiled model.
+//
+// Parameters:
+// - compiled_model: the target `LiteRtCompiledModel` object.
+// - key: the annotation key to look up (must not be null).
+// - value: pointer to store the annotation value (will be set to null if key
+//   not found).
+//
+// Returns:
+// - kLiteRtStatusOk if successful (even if key not found).
+// - kLiteRtStatusErrorInvalidArgument if inputs are invalid.
+//
+// Note: The returned value pointer is owned by the compiled model and should
+// not be freed or outlive the compiled model.
+LiteRtStatus LiteRtCompiledModelGetDispatchAnnotation(
+    LiteRtCompiledModel compiled_model, const char* key, const char** value);
+
+// Removes a dispatch annotation from the compiled model.
+//
+// Parameters:
+// - compiled_model: the target `LiteRtCompiledModel` object.
+// - key: the annotation key to remove (must not be null).
+//
+// Returns:
+// - kLiteRtStatusOk if successful (even if key not found).
+// - kLiteRtStatusErrorInvalidArgument if inputs are invalid.
+LiteRtStatus LiteRtCompiledModelRemoveDispatchAnnotation(
+    LiteRtCompiledModel compiled_model, const char* key);
+
+// Error reporter APIs
+
+// Reports an error to the compiled model's error reporter.
+// Note: This function accepts printf-style format strings.
+LiteRtStatus LiteRtCompiledModelReportError(LiteRtCompiledModel compiled_model,
+                                            const char* format, ...);
+
+// Clears all errors (only available with buffer error reporter mode).
+LiteRtStatus LiteRtCompiledModelClearErrors(LiteRtCompiledModel compiled_model);
+
+// Gets all error messages as a single string (only available with buffer error
+// reporter mode). The caller is responsible for freeing the returned
+// `error_messages` buffer using `free`.
+LiteRtStatus LiteRtCompiledModelGetErrorMessages(
+    LiteRtCompiledModel compiled_model, char** error_messages);
 #ifdef __cplusplus
 }
 #endif  // __cplusplus
