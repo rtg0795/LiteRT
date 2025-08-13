@@ -100,30 +100,31 @@ LITERT_DEFINE_HANDLE(LiteRtExternalLiteRtBufferContext);
 #define LITERT_HAS_DMABUF_SUPPORT 1
 #define LITERT_HAS_FASTRPC_SUPPORT 1
 #define LITERT_HAS_OPENGL_SUPPORT 1
-#define LITERT_HAS_OPENCL_SUPPORT_DEFAULT 1
-#define LITERT_HAS_WEBGPU_SUPPORT_DEFAULT 1
 // copybara:comment_begin(google-only)
 #elif defined(GOOGLE_UNSUPPORTED_OS_LOONIX)
 #define LITERT_HAS_ION_SUPPORT 0
 #define LITERT_HAS_DMABUF_SUPPORT 1
 #define LITERT_HAS_FASTRPC_SUPPORT 0
-#define LITERT_HAS_OPENCL_SUPPORT_DEFAULT 1
-#define LITERT_HAS_WEBGPU_SUPPORT_DEFAULT 1
+#define LITERT_HAS_OPENGL_SUPPORT 0
 // copybara:comment_end
 #else
 #define LITERT_HAS_ION_SUPPORT 0
 #define LITERT_HAS_DMABUF_SUPPORT 0
 #define LITERT_HAS_FASTRPC_SUPPORT 0
-#define LITERT_HAS_OPENCL_SUPPORT_DEFAULT 1
-#define LITERT_HAS_WEBGPU_SUPPORT_DEFAULT 1
 #define LITERT_HAS_OPENGL_SUPPORT 0
 #endif
 
 #if defined(__APPLE__)
 #define LITERT_HAS_METAL_SUPPORT_DEFAULT 1
+#define LITERT_HAS_OPENCL_SUPPORT_DEFAULT 0
+#define LITERT_HAS_VULKAN_SUPPORT_DEFAULT 0
 #else
 #define LITERT_HAS_METAL_SUPPORT_DEFAULT 0
+#define LITERT_HAS_OPENCL_SUPPORT_DEFAULT 1
+#define LITERT_HAS_VULKAN_SUPPORT_DEFAULT 1
 #endif
+
+#define LITERT_HAS_WEBGPU_SUPPORT_DEFAULT 1
 
 #if defined(LITERT_DISABLE_METAL_SUPPORT)
 #define LITERT_HAS_METAL_SUPPORT 0
@@ -136,10 +137,17 @@ LITERT_DEFINE_HANDLE(LiteRtExternalLiteRtBufferContext);
 #else
 #define LITERT_HAS_OPENCL_SUPPORT LITERT_HAS_OPENCL_SUPPORT_DEFAULT
 #endif
+
 #if defined(LITERT_DISABLE_WEBGPU_SUPPORT)
 #define LITERT_HAS_WEBGPU_SUPPORT 0
 #else
 #define LITERT_HAS_WEBGPU_SUPPORT LITERT_HAS_WEBGPU_SUPPORT_DEFAULT
+#endif
+
+#if defined(LITERT_DISABLE_VULKAN_SUPPORT)
+#define LITERT_HAS_VULKAN_SUPPORT 0
+#else
+#define LITERT_HAS_VULKAN_SUPPORT LITERT_HAS_VULKAN_SUPPORT_DEFAULT
 #endif
 
 #define LITERT_API_VERSION_MAJOR 0
@@ -228,6 +236,24 @@ typedef enum {
   kLiteRtTensorBufferLockModeWrite = 1,
   kLiteRtTensorBufferLockModeReadWrite = 2,
 } LiteRtTensorBufferLockMode;
+
+// Backend option of GPU Accelerator.
+// No need to specify on iOS or Metal since there is only one backend.
+typedef enum {
+  kLiteRtGpuBackendAutomatic = 0,
+  kLiteRtGpuBackendOpenCl = 1,
+  kLiteRtGpuBackendWebGpu = 2,
+} LiteRtGpuBackend;
+
+// Error reporter mode enum
+typedef enum LiteRtErrorReporterMode {
+  // No error reporting (errors are ignored)
+  kLiteRtErrorReporterModeNone = 0,
+  // Default stderr error reporter
+  kLiteRtErrorReporterModeStderr = 1,
+  // Buffer error reporter that collects errors for later retrieval
+  kLiteRtErrorReporterModeBuffer = 2,
+} LiteRtErrorReporterMode;
 
 // A bit field of `LiteRtHwAccelerators` values.
 typedef int LiteRtHwAcceleratorSet;

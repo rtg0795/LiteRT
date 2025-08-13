@@ -88,6 +88,12 @@
                                           LITERT_ASSIGN_OR_ABORT_HELPER_2))( \
       _CONCAT_NAME(expected_value_or_error_, __LINE__), DECL, __VA_ARGS__)
 
+// Define LITERT_WINDOWS_OS if the current OS is Windows.
+#if defined(WIN32) || defined(_WIN32) || defined(__WIN32__) || \
+    defined(__NT__) || defined(_WIN64)
+#define LITERT_WINDOWS_OS 1
+#endif
+
 namespace litert {
 
 // Converts implicitly to either `LiteRtStatus` or `litert::Expected` holding an
@@ -185,12 +191,23 @@ class ErrorStatusBuilder {
 
   static constexpr bool IsError(const litert::Unexpected&) { return true; }
 
+#if defined(LITERT_WINDOWS_OS)
+  // absl::Status::ok() is not constexpr-compatible on Windows MSVC.
+  static bool IsError(const absl::Status& s) { return !s.ok(); }
+
+  // absl::Status::ok() is not constexpr-compatible on Windows MSVC.
+  template <class T>
+  static bool IsError(const absl::StatusOr<T>& s) {
+    return !s.ok();
+  }
+#else
   static constexpr bool IsError(const absl::Status& s) { return !s.ok(); }
 
   template <class T>
   static constexpr bool IsError(const absl::StatusOr<T>& s) {
     return !s.ok();
   }
+#endif
 
   template <class T>
   static constexpr bool IsError(const litert::Expected<T>& expected) {
@@ -200,7 +217,15 @@ class ErrorStatusBuilder {
   void PrintLog() const noexcept {
 #ifndef NDEBUG
     if (ShouldLog()) {
-      LITERT_LOG(log_level_, "%s", LogMessage().c_str());
+      auto logger = LiteRtGetDefaultLogger();
+      LiteRtLogSeverity __min_severity__;
+      if (LiteRtGetMinLoggerSeverity(logger, &__min_severity__) !=
+          kLiteRtStatusOk) {
+        __min_severity__ = kLiteRtLogSeverityVerbose;
+      }
+      if (log_level_ >= __min_severity__) {
+        LiteRtLoggerLog(logger, log_level_, "%s", LogMessage().c_str());
+      }
     }
 #endif
   }

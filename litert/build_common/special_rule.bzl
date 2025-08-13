@@ -43,14 +43,24 @@ def gles_linkopts():
         "//conditions:default": [],
     })
 
-def metal_opts():
+def litert_metal_opts():
+    return select({
+        "@platforms//os:ios": ["-ObjC++"],
+        "@platforms//os:macos": ["-ObjC++"],
+        "//conditions:default": [],
+    })
+
+def litert_metal_linkopts():
     """This is a no-op outside of Google."""
     return []
 
-def metal_linkopts():
-    """This is a no-op outside of Google."""
-    return []
+def litert_metal_deps_without_gpu_environment():
+    return select({
+        "@platforms//os:ios": ["//tflite/delegates/gpu/metal:metal_device"],
+        "@platforms//os:macos": ["//tflite/delegates/gpu/metal:metal_device"],
+        "//conditions:default": [],
+    })
 
-def metal_deps():
+def litert_metal_deps():
     """This is a no-op outside of Google."""
     return []

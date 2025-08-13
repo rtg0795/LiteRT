@@ -16,8 +16,15 @@
 
 #include <stddef.h>
 
+#include <cstdarg>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
 #include <memory>
+#include <string>
+#include <unordered_map>
 
+#include "absl/types/span.h"  // from @com_google_absl
 #include "litert/c/litert_common.h"
 #include "litert/c/litert_environment.h"
 #include "litert/c/litert_logging.h"
@@ -57,8 +64,7 @@ LiteRtStatus LiteRtGetCompiledModelInputBufferRequirements(
 
   LITERT_ASSIGN_OR_RETURN(
       LiteRtTensorBufferRequirementsConst buffer_requirements_ptr,
-      compiled_model->GetInputBufferRequirements(signature_index,
-                                                     input_index));
+      compiled_model->GetInputBufferRequirements(signature_index, input_index));
   *buffer_requirements =
       const_cast<LiteRtTensorBufferRequirements>(buffer_requirements_ptr);
   return kLiteRtStatusOk;
@@ -176,12 +182,147 @@ LiteRtStatus LiteRtCompiledModelIsFullyAccelerated(
 
 LiteRtStatus LiteRtCompiledModelGetProfiler(LiteRtCompiledModel compiled_model,
                                             LiteRtProfiler* profiler) {
-  LITERT_RETURN_IF_ERROR(
-      compiled_model != nullptr && profiler != nullptr,
-      kLiteRtStatusErrorInvalidArgument);
+  LITERT_RETURN_IF_ERROR(compiled_model != nullptr && profiler != nullptr,
+                         kLiteRtStatusErrorInvalidArgument);
   LITERT_ASSIGN_OR_RETURN(LiteRtProfilerT * profiler_ptr,
                           compiled_model->GetProfiler());
   *profiler = profiler_ptr;
+  return kLiteRtStatusOk;
+}
+
+LiteRtStatus LiteRtCompiledModelResizeInputTensor(
+    LiteRtCompiledModel compiled_model, LiteRtParamIndex signature_index,
+    LiteRtParamIndex input_index, const int* dims, size_t dims_size) {
+  LITERT_RETURN_IF_ERROR(compiled_model != nullptr,
+                         kLiteRtStatusErrorInvalidArgument);
+  LITERT_RETURN_IF_ERROR(compiled_model->ResizeInputTensor(
+      signature_index, input_index, absl::MakeConstSpan(dims, dims_size)));
+  return kLiteRtStatusOk;
+}
+
+LiteRtStatus LiteRtCompiledModelSetDispatchAnnotation(
+    LiteRtCompiledModel compiled_model, const char* key, const char* value) {
+  if (!compiled_model || !key || !value) {
+    LITERT_LOG(LITERT_ERROR, "Invalid arguments: null pointers provided");
+    return kLiteRtStatusErrorInvalidArgument;
+  }
+
+  // Get the buffer context and set the annotation
+  auto* buffer_context = compiled_model->GetBufferContext();
+  if (!buffer_context) {
+    LITERT_LOG(LITERT_ERROR, "Buffer context not initialized");
+    return kLiteRtStatusErrorRuntimeFailure;
+  }
+
+  auto& annotations = const_cast<std::unordered_map<std::string, std::string>&>(
+      buffer_context->GetDispatchAnnotations());
+  annotations[key] = value;
+
+  return kLiteRtStatusOk;
+}
+
+LiteRtStatus LiteRtCompiledModelGetDispatchAnnotation(
+    LiteRtCompiledModel compiled_model, const char* key, const char** value) {
+  if (!compiled_model || !key || !value) {
+    LITERT_LOG(LITERT_ERROR, "Invalid arguments: null pointers provided");
+    return kLiteRtStatusErrorInvalidArgument;
+  }
+
+  // Get the buffer context and retrieve the annotation
+  auto* buffer_context = compiled_model->GetBufferContext();
+  if (!buffer_context) {
+    LITERT_LOG(LITERT_ERROR, "Buffer context not initialized");
+    *value = nullptr;
+    return kLiteRtStatusErrorRuntimeFailure;
+  }
+
+  const auto& annotations = buffer_context->GetDispatchAnnotations();
+  auto it = annotations.find(key);
+  if (it != annotations.end()) {
+    *value = it->second.c_str();
+  } else {
+    *value = nullptr;
+  }
+
+  return kLiteRtStatusOk;
+}
+
+LiteRtStatus LiteRtCompiledModelRemoveDispatchAnnotation(
+    LiteRtCompiledModel compiled_model, const char* key) {
+  if (!compiled_model || !key) {
+    LITERT_LOG(LITERT_ERROR, "Invalid arguments: null pointers provided");
+    return kLiteRtStatusErrorInvalidArgument;
+  }
+
+  // Get the buffer context and remove the annotation
+  auto* buffer_context = compiled_model->GetBufferContext();
+  if (!buffer_context) {
+    LITERT_LOG(LITERT_ERROR, "Buffer context not initialized");
+    return kLiteRtStatusErrorRuntimeFailure;
+  }
+
+  auto& annotations = const_cast<std::unordered_map<std::string, std::string>&>(
+      buffer_context->GetDispatchAnnotations());
+  annotations.erase(key);
+
+  return kLiteRtStatusOk;
+}
+
+LiteRtStatus LiteRtCompiledModelReportError(LiteRtCompiledModel compiled_model,
+                                            const char* format, ...) {
+  LITERT_RETURN_IF_ERROR(compiled_model != nullptr && format != nullptr,
+                         kLiteRtStatusErrorInvalidArgument);
+
+  va_list args;
+  va_start(args, format);
+  // Create a formatted string since ReportError expects format and variadic
+  // args
+  char* buffer = nullptr;
+  int len = vasprintf(&buffer, format, args);
+  if (len < 0 || buffer == nullptr) {
+    va_end(args);
+    return kLiteRtStatusErrorRuntimeFailure;
+  }
+  compiled_model->ReportError("%s", buffer);
+  va_end(args);
+  free(buffer);
+
+  return kLiteRtStatusOk;
+}
+
+LiteRtStatus LiteRtCompiledModelClearErrors(
+    LiteRtCompiledModel compiled_model) {
+  LITERT_RETURN_IF_ERROR(compiled_model != nullptr,
+                         kLiteRtStatusErrorInvalidArgument);
+
+  auto result = compiled_model->ClearErrors();
+  if (!result) {
+    return result.Error().Status();
+  }
+
+  return kLiteRtStatusOk;
+}
+
+LiteRtStatus LiteRtCompiledModelGetErrorMessages(
+    LiteRtCompiledModel compiled_model, char** error_messages) {
+  LITERT_RETURN_IF_ERROR(compiled_model != nullptr && error_messages != nullptr,
+                         kLiteRtStatusErrorInvalidArgument);
+
+  auto result = compiled_model->GetErrorMessages();
+  if (!result) {
+    return result.Error().Status();
+  }
+
+  // Allocate and copy the string
+  size_t len = result->size();
+  *error_messages = static_cast<char*>(malloc(len + 1));
+  if (*error_messages == nullptr) {
+    return kLiteRtStatusErrorRuntimeFailure;
+  }
+
+  memcpy(*error_messages, result->c_str(), len);
+  (*error_messages)[len] = '\0';
+
   return kLiteRtStatusOk;
 }
 

@@ -45,6 +45,10 @@ LiteRtStatus GpuOptions::EnableBenchmarkMode(bool enabled) {
   return LiteRtSetGpuOptionsBenchmarkMode(Get(), enabled);
 }
 
+LiteRtStatus GpuOptions::SetGpuBackend(LiteRtGpuBackend backend) {
+  return LiteRtSetGpuOptionsGpuBackend(Get(), backend);
+}
+
 LiteRtStatus GpuOptions::EnableAllowSrcQuantizedFcConvOps(bool enabled) {
   return LiteRtSetGpuAcceleratorCompilationOptionsAllowSrcQuantizedFcConvOps(
       Get(), enabled);
@@ -88,8 +92,8 @@ LiteRtStatus GpuOptions::SetSerializeExternalTensors(
       Get(), serialize_external_tensors);
 }
 
-LiteRtStatus GpuOptions::EnableNoImmutableExternalTensorsMode(bool enabled) {
-  return LiteRtSetGpuOptionsNoImmutableExternalTensorsMode(Get(), enabled);
+LiteRtStatus GpuOptions::EnableNoExternalTensorsMode(bool enabled) {
+  return LiteRtSetGpuOptionsNoExternalTensorsMode(Get(), enabled);
 }
 
 LiteRtStatus GpuOptions::AddExternalTensorPattern(const char* pattern) {

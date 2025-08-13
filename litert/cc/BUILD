@@ -14,6 +14,12 @@
 
 load("//litert/build_common:special_rule.bzl", "gles_linkopts")
 load("//litert/integration_test:litert_device.bzl", "litert_device_exec", "litert_device_test")
+# copybara:uncomment load("//tools/build_defs/apple:ios.bzl", "ios_unit_test")
+# copybara:uncomment load("//tools/build_defs/apple:macos.bzl", "macos_unit_test")
+
+# copybara:uncomment LITERT_MIN_IOS_VERSION = "13.0"
+
+# copybara:uncomment LITERT_MIN_MACOS_VERSION = "14.0"
 
 package(
     # copybara:uncomment default_applicable_licenses = ["@org_tensorflow//tensorflow:license"],
@@ -447,13 +453,16 @@ cc_test(
     srcs = ["litert_op_options_test.cc"],
     data = [
         "//litert/test:mlir_test_data",
+        "//litert/test:tflite_test_data",
     ],
     deps = [
+        ":litert_buffer_ref",
         ":litert_expected",
         ":litert_op_options",
         "//litert/c:litert_common",
         "//litert/c:litert_op_code",
         "//litert/core/model",
+        "//litert/core/model:buffer_manager",
         "//litert/core/util:flatbuffer_tools",
         "//litert/test:common",
         "//tflite/schema:schema_fbs",
@@ -677,8 +686,11 @@ LITERT_C_API_DEPS = [
     "//litert/c:litert_logging",
     "//litert/c:litert_metrics",
     "//litert/c:litert_model",
+    "//litert/c:litert_profiler_event",
     "//litert/c:litert_opaque_options",
     "//litert/c:litert_options",
+    "//litert/c:litert_profiler",
+    "//litert/c:litert_custom_tensor_buffer",
     "//litert/c:litert_tensor_buffer",
     "//litert/c:litert_tensor_buffer_types",
     "//litert/c:litert_external_litert_buffer_context",
@@ -729,6 +741,7 @@ cc_library(
     ] + select({
         "@org_tensorflow//tensorflow:ios": LITERT_C_API_DEPS,
         "@org_tensorflow//tensorflow:emscripten": LITERT_C_API_DEPS,
+        "@org_tensorflow//tensorflow:macos": LITERT_C_API_DEPS,
         "//conditions:default": [
             "//litert/c:litert_runtime_c_api_shared_lib",
         ],
@@ -782,11 +795,12 @@ cc_library(
         ":litert_expected",
         ":litert_handle",
         ":litert_macros",
-        "//litert/c:litert_common",
     ] + select({
+        "@org_tensorflow//tensorflow:macos": LITERT_C_API_DEPS,
         "@org_tensorflow//tensorflow:ios": LITERT_C_API_DEPS,
         "@org_tensorflow//tensorflow:emscripten": LITERT_C_API_DEPS,
         "//conditions:default": [
+            "//litert/c:litert_common",
             "//litert/c:litert_runtime_c_api_shared_lib",
         ],
     }),
@@ -850,8 +864,9 @@ cc_library(
         "@com_google_absl//absl/types:span",
         "@opencl_headers",
     ] + select({
-        "@org_tensorflow//tensorflow:ios": LITERT_C_API_DEPS,
         "@org_tensorflow//tensorflow:emscripten": LITERT_C_API_DEPS,
+        "@org_tensorflow//tensorflow:macos": LITERT_C_API_DEPS,
+        "@org_tensorflow//tensorflow:ios": LITERT_C_API_DEPS,
         "//conditions:default": [
             "//litert/c:litert_runtime_c_api_shared_lib",
         ],
@@ -925,8 +940,9 @@ cc_library(
         ":litert_macros",
         "@com_google_absl//absl/types:span",
     ] + select({
-        "@org_tensorflow//tensorflow:ios": LITERT_C_API_DEPS,
         "@org_tensorflow//tensorflow:emscripten": LITERT_C_API_DEPS,
+        "@org_tensorflow//tensorflow:macos": LITERT_C_API_DEPS,
+        "@org_tensorflow//tensorflow:ios": LITERT_C_API_DEPS,
         "//conditions:default": [
             "//litert/c:litert_runtime_c_api_shared_lib",
         ],
@@ -967,8 +983,9 @@ cc_library(
         ":litert_macros",
         "@com_google_absl//absl/types:span",
     ] + select({
-        "@org_tensorflow//tensorflow:ios": LITERT_C_API_DEPS,
         "@org_tensorflow//tensorflow:emscripten": LITERT_C_API_DEPS,
+        "@org_tensorflow//tensorflow:macos": LITERT_C_API_DEPS,
+        "@org_tensorflow//tensorflow:ios": LITERT_C_API_DEPS,
         "//conditions:default": [
             "//litert/c:litert_runtime_c_api_shared_lib",
         ],
@@ -1026,8 +1043,9 @@ cc_library(
         "@com_google_absl//absl/strings:string_view",
         "@com_google_absl//absl/types:span",
     ] + select({
-        "@org_tensorflow//tensorflow:ios": LITERT_C_API_DEPS,
         "@org_tensorflow//tensorflow:emscripten": LITERT_C_API_DEPS,
+        "@org_tensorflow//tensorflow:macos": LITERT_C_API_DEPS,
+        "@org_tensorflow//tensorflow:ios": LITERT_C_API_DEPS,
         "//conditions:default": [
             "//litert/c:litert_runtime_c_api_shared_lib",
         ],
@@ -1207,8 +1225,9 @@ cc_library(
         ":litert_macros",
         ":litert_opaque_options",
     ] + select({
-        "@org_tensorflow//tensorflow:ios": LITERT_C_API_DEPS,
         "@org_tensorflow//tensorflow:emscripten": LITERT_C_API_DEPS,
+        "@org_tensorflow//tensorflow:macos": LITERT_C_API_DEPS,
+        "@org_tensorflow//tensorflow:ios": LITERT_C_API_DEPS,
         "//conditions:default": [
             "//litert/c:litert_runtime_c_api_shared_lib",
         ],
@@ -1231,8 +1250,9 @@ cc_library(
         ":litert_handle",
         ":litert_macros",
     ] + select({
-        "@org_tensorflow//tensorflow:ios": LITERT_C_API_DEPS,
         "@org_tensorflow//tensorflow:emscripten": LITERT_C_API_DEPS,
+        "@org_tensorflow//tensorflow:macos": LITERT_C_API_DEPS,
+        "@org_tensorflow//tensorflow:ios": LITERT_C_API_DEPS,
         "//conditions:default": [
             "//litert/c:litert_runtime_c_api_shared_lib",
         ],
@@ -1260,3 +1280,91 @@ exports_files(glob([
     "*.h",
     "*.cc",
 ]))
+
+objc_library(
+    name = "LitertTensorBufferTestLibrary",
+    testonly = True,
+    srcs = ["litert_tensor_buffer_test.mm"],
+    deps = [
+        ":litert_environment",
+        ":litert_event",
+        ":litert_expected",
+        ":litert_handle",
+        ":litert_layout",
+        ":litert_macros",
+        ":litert_model",
+        ":litert_platform_support",
+        ":litert_tensor_buffer",
+        "//litert/c:litert_common",
+        "//litert/c:litert_dispatch_headers",
+        "//litert/runtime:metal_memory",
+        "//litert/runtime:tensor_buffer",
+        "//tflite/delegates/gpu/metal:metal_device",
+        "//third_party/apple_frameworks:XCTest",
+    ],
+)
+
+objc_library(
+    name = "litert_compiled_model_metal_test",
+    testonly = True,
+    srcs = [":litert_compiled_model_metal_test.mm"],
+    data = [
+        "//litert/test:testdata/simple_model.tflite",
+    ],
+    tags = [
+        "no_oss",
+        "notap",
+    ],
+    deps = [
+        ":litert_compiled_model",
+        ":litert_environment",
+        ":litert_expected",
+        ":litert_options",
+        "//litert/c:litert_common",
+        "//litert/c:litert_dispatch_headers",
+        "//litert/cc/options:litert_gpu_options",
+        "//litert/runtime/accelerators/gpu:ml_drift_metal_accelerator",
+        "//litert/test:common",
+        "//litert/test:matchers",
+        "//litert/test:simple_model",
+        "//third_party/apple_frameworks:XCTest",
+        "@com_google_absl//absl/log:absl_log",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
+# copybara:uncomment_begin(google-only)
+# macos_unit_test(
+#     name = "litert_tensor_buffer_test_cc_macos",
+#     minimum_os_version = LITERT_MIN_MACOS_VERSION,
+#     tags = ["notap"],
+#     deps = [":LitertTensorBufferTestLibrary"],
+# )
+#
+# ios_unit_test(
+#     name = "litert_tensor_buffer_test_cc_ios",
+#     minimum_os_version = LITERT_MIN_IOS_VERSION,
+#     runner = "@build_bazel_rules_apple//apple/testing/default_runner:ios_default_runner",
+#     tags = [
+#         "nobuilder",
+#         "notap",
+#     ],
+#     deps = [":LitertTensorBufferTestLibrary"],
+# )
+#
+# macos_unit_test(
+#     name = "litert_compiled_model_metal_test_cc_macos",
+#     minimum_os_version = LITERT_MIN_MACOS_VERSION,
+#     tags = ["notap"],
+#     deps = [":litert_compiled_model_metal_test"],
+# )
+#
+# ios_unit_test(
+#     name = "litert_compiled_model_metal_test_cc_ios",
+#     minimum_os_version = LITERT_MIN_IOS_VERSION,
+#     # copybara:uncomment runner = "@build_bazel_rules_apple//apple/testing/default_runner:ios_default_runner",
+#     tags = ["notap"],
+#     deps = [":litert_compiled_model_metal_test"],
+# )
+# copybara:uncomment_end(google-only)

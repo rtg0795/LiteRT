@@ -48,6 +48,7 @@ Options CreateCompiledModelOptions(const BenchmarkParams& params) {
   auto use_gpu = params.Get<bool>("use_gpu");
   auto use_npu = params.Get<bool>("use_npu");
   auto use_cpu = params.Get<bool>("use_cpu");
+  auto gpu_backend = params.Get<std::string>("gpu_backend");
   auto use_profiler = params.Get<bool>("use_profiler");
   auto require_full_delegation = params.Get<bool>("require_full_delegation");
   LITERT_ASSIGN_OR_ABORT(Options compilation_options,
@@ -70,9 +71,12 @@ Options CreateCompiledModelOptions(const BenchmarkParams& params) {
     hardware_accelerators |= LiteRtHwAccelerators::kLiteRtHwAcceleratorGpu;
     LITERT_ASSIGN_OR_ABORT(auto gpu_options, GpuOptions::Create());
     // Enable no external tensors mode.
-    gpu_options.EnableNoImmutableExternalTensorsMode(/*enabled=*/true);
+    gpu_options.EnableNoExternalTensorsMode(/*enabled=*/true);
     // Enable benchmark mode to run clFinish() after each inference.
     gpu_options.EnableBenchmarkMode(/*enabled=*/true);
+    if (gpu_backend == "webgpu") {
+      gpu_options.SetGpuBackend(kLiteRtGpuBackendWebGpu);
+    }
     compilation_options.AddOpaqueOptions(std::move(gpu_options));
   }
 

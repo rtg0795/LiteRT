@@ -20,11 +20,6 @@ package(
     default_visibility = ["//litert:__subpackages__"],
 )
 
-config_setting(
-    name = "openvino_native_dir_set",
-    values = {"define": "OPENVINO_NATIVE_DIR_SET=true"},
-)
-
 litert_dynamic_lib(
     name = "openvino_compiler_plugin",
     srcs = ["openvino_compiler_plugin.cc"],
@@ -43,20 +38,26 @@ litert_dynamic_lib(
     deps = [
         ":graph_iterator",
         "//litert/c:litert_common",
+        "//litert/c:litert_dispatch_headers",
+        "//litert/c:litert_environment_options",
+        "//litert/c:litert_model",
         "//litert/c:litert_op_code",
+        "//litert/c:litert_op_options",
+        "//litert/c:litert_options",
         "//litert/cc:litert_expected",
         "//litert/cc:litert_macros",
         "//litert/cc:litert_model",
-    ] + select({
-        ":openvino_native_dir_set": ["@intel_openvino//:openvino"],
-        "//conditions:default": [],
-    }),
+        "@com_google_absl//absl/strings",
+        "@intel_openvino//:openvino",
+    ],
 )
 
 litert_lib(
     name = "graph_iterator",
     srcs = ["graph_iterator.cc"],
-    hdrs = ["graph_iterator.h"],
+    hdrs = [
+        "graph_iterator.h",
+    ],
     tags = [
         "nobuilder",
         "notap",
@@ -68,10 +69,9 @@ litert_lib(
         "//litert/c:litert_op_code",
         "//litert/cc:litert_element_type",
         "//litert/cc:litert_model",
-    ] + select({
-        ":openvino_native_dir_set": ["@intel_openvino//:openvino"],
-        "//conditions:default": [],
-    }),
+        "//litert/vendors/intel_openvino:ov_utils",
+        "@intel_openvino//:openvino",
+    ],
 )
 
 litert_lib(
@@ -83,14 +83,21 @@ litert_lib(
         "notap",
     ],
     deps = [
+        "//litert/c:litert_common",
+        "//litert/c:litert_dispatch_headers",
+        "//litert/c:litert_environment_options",
         "//litert/c:litert_logging",
+        "//litert/c:litert_model",
+        "//litert/c:litert_op_code",
+        "//litert/c:litert_op_options",
         "//litert/c:litert_options",
+        "//litert/cc:litert_expected",
+        "//litert/cc:litert_macros",
         "//litert/cc:litert_model",
-        "//litert/tools:dump",
-    ] + select({
-        ":openvino_native_dir_set": ["@intel_openvino//:openvino"],
-        "//conditions:default": [],
-    }),
+        "//litert/vendors/intel_openvino:ov_utils",
+        "//tflite/schema:schema_fbs",
+        "@intel_openvino//:openvino",
+    ],
 )
 
 litert_test(
@@ -114,10 +121,8 @@ litert_test(
         "//litert/vendors/cc:litert_compiler_plugin",
         "@com_google_absl//absl/log:absl_check",
         "@com_google_absl//absl/strings:string_view",
-    ] + select({
-        ":openvino_native_dir_set": ["@intel_openvino//:openvino"],
-        "//conditions:default": [],
-    }),
+        "@intel_openvino//:openvino",
+    ],
 )
 
 litert_test(
@@ -158,8 +163,6 @@ litert_test(
         "//litert/vendors/cc:litert_compiler_plugin",
         "@com_google_absl//absl/log:absl_check",
         "@com_google_absl//absl/strings:string_view",
-    ] + select({
-        ":openvino_native_dir_set": ["@intel_openvino//:openvino"],
-        "//conditions:default": [],
-    }),
+        "@intel_openvino//:openvino",
+    ],
 )

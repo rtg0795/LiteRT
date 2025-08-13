@@ -17,6 +17,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <string>
 #include <utility>
@@ -36,10 +37,17 @@
 #include "litert/runtime/external_litert_buffer_context.h"
 #include "litert/runtime/metrics.h"
 #include "litert/runtime/profiler.h"
+#include "litert/runtime/tensor_identifier.h"
+#include "litert/runtime/tfl_utils.h"
 #include "tensorflow/compiler/mlir/lite/allocation.h"
+#include "tflite/core/api/error_reporter.h"
 #include "tflite/delegates/utils/simple_opaque_delegate.h"
 #include "tflite/interpreter.h"
 #include "tflite/model_builder.h"
+
+using TfLiteTensorIdentifier = litert::internal::TfLiteTensorIdentifier;
+using TensorIdentifierHash = litert::internal::TensorIdentifierHash;
+using TensorIdentifierEqual = litert::internal::TensorIdentifierEqual;
 
 // The LiteRtCompiledModelT is internal implementation of CompiledModel C++ API.
 class LiteRtCompiledModelT {
@@ -136,6 +144,27 @@ class LiteRtCompiledModelT {
   // Returns the profiler used by the compiled model.
   litert::Expected<LiteRtProfilerT*> GetProfiler() { return profiler_; }
 
+  // Resizes the specified input tensor to support dynamic shapes.
+  litert::Expected<void> ResizeInputTensor(size_t signature_index,
+                                           size_t input_index,
+                                           absl::Span<const int> dims);
+
+  // Returns the external buffer context which contains dispatch annotations.
+  LiteRtExternalLiteRtBufferContextT* GetBufferContext() {
+    return buffer_context_.get();
+  }
+
+  // Error reporter APIs
+
+  // Reports an error. Thread-safe.
+  void ReportError(const char* format, ...);
+
+  // Clears all errors (only available in buffer mode)
+  litert::Expected<void> ClearErrors();
+
+  // Gets all error messages (only available in buffer mode)
+  litert::Expected<std::string> GetErrorMessages();
+
  private:
   // Helper function to automatically resize input tensor based on shape change
   static litert::Expected<bool> InputTensorNeedsResize(
@@ -159,7 +188,7 @@ class LiteRtCompiledModelT {
   litert::Expected<void> InitializeRuntime(
       LiteRtEnvironmentT* env, LiteRtOptions jit_compilation_options);
 
-  // Handles any JIT compilation and intializes the flatbuffer_model_ and
+  // Handles any JIT compilation and initializes the flatbuffer_model_ and
   // related field within the compiled model.
   //
   // If no JIT compilation is requested, the compiled model will point to the
@@ -176,6 +205,7 @@ class LiteRtCompiledModelT {
   // consider caching JIT result.
   litert::Expected<void> InitializeModel(LiteRtModelT& model,
                                          LiteRtHwAcceleratorSet hw_accelerators,
+                                         LiteRtOptions options,
                                          LiteRtEnvironmentT& env);
 
   // Returns the base address of the flatbuffer memory.
@@ -263,7 +293,9 @@ class LiteRtCompiledModelT {
   // buffers, they don't register TensorBufferRequirements. Instead, the
   // CompiledModel creates the TensorBufferRequirements and stores them
   // in this map.
-  absl::flat_hash_map<const TfLiteTensor*, LiteRtTensorBufferRequirementsPtr>
+  absl::flat_hash_map<TfLiteTensorIdentifier,
+                      LiteRtTensorBufferRequirementsPtr, TensorIdentifierHash,
+                      TensorIdentifierEqual>
       cpu_buffer_requirements_;
 
   // Map from signature key to SignatureRunner. This is used to lazy calling
@@ -279,11 +311,16 @@ class LiteRtCompiledModelT {
 
   // The set of CPU Tensors. This is used to manage TensorBufferRequirements
   // for shared CPU Tensors.
-  absl::flat_hash_set<const void*> cpu_tensors_;
+  absl::flat_hash_set<TfLiteTensorIdentifier, TensorIdentifierHash,
+                      TensorIdentifierEqual>
+      cpu_tensors_;
 
   // The profiler used by the compiled model. This is used to forward the
   // profiler events to the TFLite interpreter.
   LiteRtProfilerT* profiler_ = nullptr;
+
+  // The error reporter used by the compiled model
+  std::unique_ptr<tflite::ErrorReporter> error_reporter_;
 };
 
 #endif  // ODML_LITERT_LITERT_RUNTIME_COMPILED_MODEL_H_

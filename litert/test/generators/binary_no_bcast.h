@@ -67,7 +67,7 @@ template <
     typename OpCode,
     typename Fa = FaC<>,
     typename MaxTensorSize = SizeC<1024>,
-    template <typename> typename R = DefaultRandomTensorBufferTraits
+    template <typename> typename R = DefaultGenerator
 >
 // clang-format on
 struct BinaryNoBroadcast {
@@ -106,8 +106,6 @@ struct BinaryNoBroadcast {
   struct Params {
     std::array<Layout::Dim, kRank> shape;
   };
-
-  using RandomTensorBuffer = R<T>::Gen;
 
  public:
   using Traits = TestLogicTraits<TypeList<T, T>, TypeList<T>, Params>;
@@ -160,8 +158,8 @@ struct BinaryNoBroadcast {
   }
 
   Expected<void> Reference(const Params& params,
-                           const Traits::ReferenceInputs& inputs,
-                           const Traits::ReferenceOutputs& outputs) {
+                           const typename Traits::ReferenceInputs& inputs,
+                           const typename Traits::ReferenceOutputs& outputs) {
     auto [lhs, rhs] = inputs;
     auto [output] = outputs;
     if (lhs.dimensions != rhs.dimensions ||

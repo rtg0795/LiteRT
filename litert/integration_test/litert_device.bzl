@@ -250,6 +250,10 @@ def _GpuSpec():
 def _Specs(name):
     return (_QualcommSpec() | _GoogleTensorSpec() | _MediatekSpec() | _CpuSpec() | _GpuSpec())[name]
 
+# Check if the backend maps to an NPU backend.
+def is_npu_backend(name):
+    return name in ["qualcomm", "mediatek", "google_tensor"]
+
 # copybara:uncomment_begin(google-only)
 # # MOBILE HARNESS WRAPPER ###########################################################################
 #
@@ -321,6 +325,16 @@ def _Specs(name):
 # copybara:uncomment_end
 
 # RUN ON DEVICE MACRO ##############################################################################
+
+# Public facing functions to get lib locations from a backend id. Can be used in flag creation.
+def dispatch_device_rlocation(backend_id):
+    spec = _Specs(backend_id)
+    return device_rlocation(spec.dispatch, True)
+
+# Public facing functions to get lib locations from a backend id. Can be used in flag creation.
+def plugin_device_rlocation(backend_id):
+    spec = _Specs(backend_id)
+    return device_rlocation(spec.plugin, True)
 
 def get_driver():
     return if_oss(
@@ -435,6 +449,7 @@ def litert_device_test(
         name,
         srcs,
         deps,
+        features = [],
         rule = native.cc_test,
         backend_id = "",
         driver = get_driver(),
@@ -443,7 +458,8 @@ def litert_device_test(
         exec_env_vars = [],
         tags = [],
         linkopts = [],
-        copts = []):
+        copts = [],
+        **kwargs):
     """
     Syntactic sugar for the litert_device_exec macro.
 
@@ -470,6 +486,7 @@ def litert_device_test(
         name = target,
         srcs = srcs,
         deps = deps,
+        features = features,
         data = data,
         linkopts = select({
             "@org_tensorflow//tensorflow:android": ["-landroid"],
@@ -477,6 +494,7 @@ def litert_device_test(
         }) + linkopts,
         copts = copts,
         tags = hidden_test_tags() + tags,
+        **kwargs
     )
 
     litert_device_exec(

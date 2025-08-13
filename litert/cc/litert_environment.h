@@ -47,6 +47,10 @@ class Environment
     EglDisplay = kLiteRtEnvOptionTagEglDisplay,
     WebGpuDevice = kLiteRtEnvOptionTagWebGpuDevice,
     WebGpuQueue = kLiteRtEnvOptionTagWebGpuQueue,
+    MetalDevice = kLiteRtEnvOptionTagMetalDevice,
+    MetalCommandQueue = kLiteRtEnvOptionTagMetalCommandQueue,
+    // WARNING: Vulkan support is experimental.
+    VulkanEnvironment = kLiteRtEnvOptionTagVulkanEnvironment,
   };
 
   struct Option {

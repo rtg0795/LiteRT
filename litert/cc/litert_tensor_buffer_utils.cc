@@ -57,6 +57,14 @@ std::string BufferTypeToString(LiteRtTensorBufferType buffer_type) {
       return "WebGpuBuffer";
     case kLiteRtTensorBufferTypeWebGpuBufferFp16:
       return "WebGpuBufferFp16";
+    case kLiteRtTensorBufferTypeWebGpuTexture:
+      return "WebGpuTexture";
+    case kLiteRtTensorBufferTypeWebGpuTextureFp16:
+      return "WebGpuTextureFp16";
+    case kLiteRtTensorBufferTypeWebGpuImageBuffer:
+      return "WebGpuImageBuffer";
+    case kLiteRtTensorBufferTypeWebGpuImageBufferFp16:
+      return "WebGpuImageBufferFp16";
     case kLiteRtTensorBufferTypeWebGpuBufferPacked:
       return "WebGpuBufferPacked";
     case kLiteRtTensorBufferTypeMetalBuffer:
@@ -67,6 +75,20 @@ std::string BufferTypeToString(LiteRtTensorBufferType buffer_type) {
       return "MetalTexture";
     case kLiteRtTensorBufferTypeMetalTextureFp16:
       return "MetalTextureFp16";
+    case kLiteRtTensorBufferTypeVulkanBuffer:
+      return "VulkanBuffer";
+    case kLiteRtTensorBufferTypeVulkanBufferFp16:
+      return "VulkanBufferFp16";
+    case kLiteRtTensorBufferTypeVulkanTexture:
+      return "VulkanTexture";
+    case kLiteRtTensorBufferTypeVulkanTextureFp16:
+      return "VulkanTextureFp16";
+    case kLiteRtTensorBufferTypeVulkanImageBuffer:
+      return "VulkanImageBuffer";
+    case kLiteRtTensorBufferTypeVulkanImageBufferFp16:
+      return "VulkanImageBufferFp16";
+    case kLiteRtTensorBufferTypeVulkanBufferPacked:
+      return "VulkanBufferPacked";
   }
   LITERT_LOG(LITERT_ERROR, "Unexpected value for LiteRtTensorBufferType: %d",
              static_cast<int>(buffer_type));

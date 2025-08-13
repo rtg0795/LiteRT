@@ -1,5 +1,7 @@
 load("@org_tensorflow//tensorflow:tensorflow.bzl", "tf_opts_nortti_if_android")
 load("@org_tensorflow//tensorflow:tensorflow.default.bzl", "get_compatible_with_portable", "pybind_extension")
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_cc//cc:cc_test.bzl", "cc_test")
 load("//tflite:build_def.bzl", "tflite_combine_cc_tests", "tflite_copts", "tflite_self_contained_libs_test_suite")
 load("//tflite:special_rules.bzl", "tflite_portable_test_suite_combined")
 load("//tflite/core/shims:cc_library_with_tflite.bzl", "cc_library_with_tflite")
@@ -163,10 +165,16 @@ cc_library(
         "//tflite/testing:util",
         "//tflite/tools:logging",
         "//tflite/tools/optimize:quantization_utils",
+        "//tflite/tools/serialization:writer_lib",
         "//tflite/tools/versioning",
         "@FP16",
         "@com_google_absl//absl/algorithm:container",
         "@com_google_absl//absl/base",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/base:no_destructor",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/strings:str_format",
+        "@com_google_absl//absl/synchronization",
         "@com_google_absl//absl/types:span",
         "@com_google_googletest//:gtest",
         "@eigen_archive//:eigen3",

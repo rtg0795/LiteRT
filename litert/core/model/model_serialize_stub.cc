@@ -12,22 +12,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef ODML_LITERT_LITERT_RUNTIME_TENSOR_BUFFER_CONVERSION_H_
-#define ODML_LITERT_LITERT_RUNTIME_TENSOR_BUFFER_CONVERSION_H_
+// Stub implementation for SerializeModel when mutable schema is not available
 
+#include <cstddef>
+#include <cstdint>
+#include "litert/c/litert_common.h"
+#include "litert/cc/litert_buffer_ref.h"
 #include "litert/cc/litert_expected.h"
-#include "litert/runtime/tensor_buffer.h"
 
 namespace litert::internal {
 
-// Converts the given tensor buffer to the specified buffer type. A new tensor
-// buffer is created and returned. This function locks/unlocks the tensor buffer
-// and will involve a copy.
-// TODO(b/383176413): Investigate zero/fast-copy conversions.
-Expected<LiteRtTensorBufferT::Ptr> TensorBufferConvertTo(
-    LiteRtEnvironment env, LiteRtTensorBufferType buffer_type,
-    LiteRtTensorBufferT& tensor_buffer);
+// Stub implementation that just returns an error for now
+Expected<OwningBufferRef<uint8_t>> SerializeModel(LiteRtModelT&& model,
+                                                  size_t bytecode_alignment) {
+  return Unexpected(kLiteRtStatusErrorNotFound,
+               "SerializeModel is not implemented in CMake build yet. "
+               "Mutable schema generation is required.");
+}
 
 }  // namespace litert::internal
-
-#endif  // ODML_LITERT_LITERT_RUNTIME_TENSOR_BUFFER_CONVERSION_H_

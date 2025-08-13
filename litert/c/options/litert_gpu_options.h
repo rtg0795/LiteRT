@@ -42,15 +42,17 @@ LiteRtStatus LiteRtSetGpuOptionsInfiniteFloatCapping(
 LiteRtStatus LiteRtSetGpuOptionsBenchmarkMode(LiteRtOpaqueOptions gpu_options,
                                               bool enable);
 
+// Sets the GPU backend.
+LiteRtStatus LiteRtSetGpuOptionsGpuBackend(LiteRtOpaqueOptions gpu_options,
+                                           LiteRtGpuBackend backend);
+
 // Set to true to run in no external tensors mode. This prevents GPU
 // Accelerator from using external tensors.
 // This mode mostly gives a better performance but it requires additional
 // GPU-GPU copies for input and output tensors.
 //
 // WARNING: This is an experimental feature and subject to change.
-// TODO - b/421905729: Change name to LiteRtSetGpuOptionsNoExternalTensorsMode
-// with the next API updates.
-LiteRtStatus LiteRtSetGpuOptionsNoImmutableExternalTensorsMode(
+LiteRtStatus LiteRtSetGpuOptionsNoExternalTensorsMode(
     LiteRtOpaqueOptions gpu_options, bool enable);
 
 // Add a prefix pattern to match external tensors. External tensors won't be
@@ -137,9 +139,10 @@ LiteRtStatus LiteRtGetGpuOptionsInfiniteFloatCapping(
 LiteRtStatus LiteRtGetGpuOptionsBenchmarkMode(bool* enabled,
                                               LiteRtGpuOptionsPayload payload);
 
-// TODO - b/421905729: Change name to LiteRtGetGpuOptionsNoExternalTensorsMode
-// with the next API updates.
-LiteRtStatus LiteRtGetGpuOptionsNoImmutableExternalTensorsMode(
+LiteRtStatus LiteRtGetGpuOptionsGpuBackend(LiteRtGpuBackend* backend,
+                                           LiteRtGpuOptionsPayload payload);
+
+LiteRtStatus LiteRtGetGpuOptionsNoExternalTensorsMode(
     bool* enabled, LiteRtGpuOptionsPayload payload);
 
 LiteRtStatus

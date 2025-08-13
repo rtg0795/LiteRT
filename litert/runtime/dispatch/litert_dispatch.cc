@@ -533,33 +533,33 @@ LiteRtStatus LiteRtDispatchAssignNodeFunction(
                     function_name);
 }
 
-LiteRtStatus LiteRtDispatchAnnotateGraph(LiteRtDispatchGraph graph,
+LiteRtStatus LiteRtDispatchAnnotateGraph(LiteRtDispatchGraph* graph,
                                          const char* key, const char* value) {
   if (!graph) {
     LITERT_LOG(LITERT_ERROR, "Null input");
     return kLiteRtStatusErrorInvalidArgument;
   }
-  INVOKE_GRAPH_FUNC(annotate_graph, graph, key, value);
+  INVOKE_GRAPH_FUNC(annotate_graph, *graph, key, value);
 }
 
-LiteRtStatus LiteRtDispatchAnnotateNode(LiteRtDispatchGraph graph,
+LiteRtStatus LiteRtDispatchAnnotateNode(LiteRtDispatchGraph* graph,
                                         LiteRtDispatchNodeId node_id,
                                         const char* key, const char* value) {
   if (!graph) {
     LITERT_LOG(LITERT_ERROR, "Null input");
     return kLiteRtStatusErrorInvalidArgument;
   }
-  INVOKE_GRAPH_FUNC(annotate_node, graph, node_id, key, value);
+  INVOKE_GRAPH_FUNC(annotate_node, *graph, node_id, key, value);
 }
 
-LiteRtStatus LiteRtDispatchAnnotateEdge(LiteRtDispatchGraph graph,
+LiteRtStatus LiteRtDispatchAnnotateEdge(LiteRtDispatchGraph* graph,
                                         LiteRtDispatchEdgeId edge_id,
                                         const char* key, const char* value) {
   if (!graph) {
     LITERT_LOG(LITERT_ERROR, "Null input");
     return kLiteRtStatusErrorInvalidArgument;
   }
-  INVOKE_GRAPH_FUNC(annotate_edge, graph, edge_id, key, value);
+  INVOKE_GRAPH_FUNC(annotate_edge, *graph, edge_id, key, value);
 }
 
 LiteRtStatus LiteRtDispatchInvocationContextCreateFromGraph(
@@ -571,4 +571,19 @@ LiteRtStatus LiteRtDispatchInvocationContextCreateFromGraph(
   }
   INVOKE_GRAPH_FUNC(invocation_context_create_from_graph, device_context, graph,
                     invocation_context);
+}
+
+LiteRtStatus LiteRtDispatchInvocationContextGetGraph(
+    LiteRtDispatchInvocationContext invocation_context,
+    LiteRtDispatchGraph* graph) {
+  if (!invocation_context || !graph) {
+    LITERT_LOG(LITERT_ERROR, "Null input");
+    return kLiteRtStatusErrorInvalidArgument;
+  }
+  if (!TheApi.graph_interface ||
+      !TheApi.graph_interface->invocation_context_get_graph) {
+    LITERT_LOG(LITERT_ERROR, "invocation_context_get_graph not found");
+    return kLiteRtStatusErrorUnsupported;
+  }
+  INVOKE_GRAPH_FUNC(invocation_context_get_graph, invocation_context, graph);
 }

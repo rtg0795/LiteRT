@@ -15,6 +15,7 @@
 #include "litert/runtime/compiled_model.h"
 
 #include <algorithm>
+#include <cstdarg>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -53,7 +54,9 @@
 #include "litert/cc/litert_options.h"
 #include "litert/cc/litert_tensor_buffer_utils.h"
 #include "litert/compiler/plugin/compiler_plugin.h"
+#include "litert/core/buffer_error_reporter.h"
 #include "litert/core/build_stamp.h"
+#include "litert/core/error_reporter.h"
 #include "litert/core/model/model.h"
 #include "litert/core/model/model_serialize.h"
 #include "litert/core/options.h"
@@ -67,6 +70,8 @@
 #include "litert/runtime/metrics.h"
 #include "litert/runtime/tensor_buffer.h"
 #include "litert/runtime/tensor_buffer_requirements.h"
+#include "litert/runtime/tensor_identifier.h"
+#include "litert/runtime/tfl_utils.h"
 #include "tensorflow/compiler/mlir/lite/allocation.h"
 #include "tflite/builtin_ops.h"
 #include "tflite/c/common.h"
@@ -82,7 +87,9 @@ using ::litert::Error;
 using ::litert::Expected;
 using ::litert::Unexpected;
 using ::litert::internal::DispatchDelegateOptions;
+using ::litert::internal::GetTensorIdentifier;
 using ::litert::internal::SerializeModel;
+using ::litert::internal::TfLiteTensorIdentifier;
 
 Expected<void> LiteRtCompiledModelT::InitializeRuntime(
     LiteRtEnvironmentT* env, LiteRtOptions jit_compilation_options) {
@@ -115,6 +122,19 @@ Expected<void> LiteRtCompiledModelT::InitializeRuntime(
       if ((*runtime_options)->enable_profiling) {
         profiler_ = new LiteRtProfilerT(/*max_profiling_buffer_entries=*/2048);
       }
+
+      // Create error reporter based on mode
+      switch ((*runtime_options)->error_reporter_mode) {
+        case LiteRtErrorReporterMode::kLiteRtErrorReporterModeNone:
+          // No error reporter
+          break;
+        case LiteRtErrorReporterMode::kLiteRtErrorReporterModeStderr:
+          error_reporter_ = std::make_unique<litert::StderrReporter>();
+          break;
+        case LiteRtErrorReporterMode::kLiteRtErrorReporterModeBuffer:
+          error_reporter_ = std::make_unique<litert::BufferErrorReporter>();
+          break;
+      }
     }
 
     if (auto cpu_options = litert::FindOpaqueData<LiteRtCpuOptionsT>(
@@ -124,8 +144,9 @@ Expected<void> LiteRtCompiledModelT::InitializeRuntime(
     }
   }
 
-  tflite::InterpreterBuilder builder(*fb_model_, resolver,
-                                     &interpreter_options);
+  tflite::InterpreterBuilder builder(
+      fb_model_->GetModel(), resolver, error_reporter_.get(),
+      &interpreter_options, fb_model_->allocation());
   builder(&interp_);
   if (interp_ == nullptr) {
     return Unexpected(kLiteRtStatusErrorRuntimeFailure,
@@ -167,16 +188,15 @@ int GetAllocationFd(const tflite::Allocation* allocation) {
 
 Expected<void> LiteRtCompiledModelT::InitializeModel(
     LiteRtModelT& model, LiteRtHwAcceleratorSet hw_accelerators,
-    LiteRtEnvironmentT& env) {
+    LiteRtOptions options, LiteRtEnvironmentT& env) {
   bool need_reserialization = false;
 
   if (hw_accelerators != kLiteRtHwAcceleratorNone) {
     LITERT_LOG(LITERT_INFO, "Applying compiler plugins...");
     // TODO: b/409819691 - Pass user provided `LiteRtOptions` down to the
     // vendor code (nullptr are safe for now).
-    auto jit_result =
-        litert::internal::ApplyPlugins(&env, /*options=*/nullptr, &model,
-                                       hw_accelerators, &need_reserialization);
+    auto jit_result = litert::internal::ApplyPlugins(
+        &env, options, &model, hw_accelerators, &need_reserialization);
     if (!jit_result) {
       LITERT_LOG(LITERT_WARNING, "Failed to apply compiler plugins: %s",
                  jit_result.Error().Message().c_str());
@@ -199,8 +219,8 @@ Expected<void> LiteRtCompiledModelT::InitializeModel(
     LITERT_LOG(
         LITERT_INFO,
         "Flatbuffer model initialized directly from incoming litert model.");
-    fb_model_ = tflite::FlatBufferModel::BuildFromBuffer(tfl_buf.StrData(),
-                                                         tfl_buf.Size());
+    fb_model_ = tflite::FlatBufferModel::BuildFromBuffer(
+        tfl_buf.StrData(), tfl_buf.Size(), error_reporter_.get());
     fb_model_fd_ = GetAllocationFd(tfl_wrapper.FlatbufferModel().allocation());
     return {};
   }
@@ -214,7 +234,8 @@ Expected<void> LiteRtCompiledModelT::InitializeModel(
 
   model_buf_ = std::move(*serialized);
   fb_model_ = tflite::FlatBufferModel::BuildFromBuffer(
-      reinterpret_cast<const char*>(model_buf_.Data()), model_buf_.Size());
+      reinterpret_cast<const char*>(model_buf_.Data()), model_buf_.Size(),
+      error_reporter_.get());
   if (fb_model_ == nullptr) {
     return Unexpected(kLiteRtStatusErrorFileIO,
                       "Failed to build flatbuffer from buffer");
@@ -274,8 +295,8 @@ Expected<LiteRtCompiledModelT::Ptr> LiteRtCompiledModelT::Create(
            << "No acceleration provided.";
   }
 
-  LITERT_RETURN_IF_ERROR(
-      compiled_model->InitializeModel(*model, hardware_accelerators, *env));
+  LITERT_RETURN_IF_ERROR(compiled_model->InitializeModel(
+      *model, hardware_accelerators, jit_compilation_options, *env));
 
   LITERT_RETURN_IF_ERROR(
       compiled_model->InitializeRuntime(env, jit_compilation_options));
@@ -413,7 +434,7 @@ void LiteRtCompiledModelT::CheckCpuTensors() {
       for (int i = 0; i < node.inputs->size; ++i) {
         int input_tensor_index = node.inputs->data[i];
         if (input_tensor_index == kTfLiteOptionalTensor) continue;
-        cpu_tensors_.insert(subgraph->tensor(input_tensor_index));
+        cpu_tensors_.insert({subgraph_no, input_tensor_index});
       }
     }
   }
@@ -421,9 +442,11 @@ void LiteRtCompiledModelT::CheckCpuTensors() {
 
 Expected<const LiteRtTensorBufferRequirementsT*>
 LiteRtCompiledModelT::GetTensorBufferRequirements(const TfLiteTensor* tensor) {
+  LITERT_ASSIGN_OR_RETURN(const auto tensor_id,
+                          GetTensorIdentifier(*interp_, tensor));
   // Use the buffer context to get the buffer requirements only if the tensor
   // is not a CPU tensor.
-  if (cpu_tensors_.find(tensor) == cpu_tensors_.end()) {
+  if (cpu_tensors_.find(tensor_id) == cpu_tensors_.end()) {
     if (auto requirements = buffer_context_->GetBufferRequirements(tensor)) {
       return *requirements;
     }
@@ -431,7 +454,7 @@ LiteRtCompiledModelT::GetTensorBufferRequirements(const TfLiteTensor* tensor) {
     LITERT_LOG(LITERT_VERBOSE, "Tensor %s is shared with CPU.\n", tensor->name);
   }
   // Check if we have a cached CPU buffer requirement.
-  auto cached_req = cpu_buffer_requirements_.find(tensor);
+  auto cached_req = cpu_buffer_requirements_.find(tensor_id);
   if (cached_req != cpu_buffer_requirements_.end()) {
     return cached_req->second.get();
   }
@@ -442,7 +465,7 @@ LiteRtCompiledModelT::GetTensorBufferRequirements(const TfLiteTensor* tensor) {
   LITERT_RETURN_IF_ERROR(LiteRtCreateTensorBufferRequirements(
       /*num_supported_tensor_buffer_types=*/1, cpu_buffer_type, tensor->bytes,
       /*num_strides=*/1, cpu_buffer_strides, &litert_cpu_buffer_requirements));
-  cpu_buffer_requirements_[tensor] =
+  cpu_buffer_requirements_[tensor_id] =
       LiteRtTensorBufferRequirementsPtr(litert_cpu_buffer_requirements);
   return litert_cpu_buffer_requirements;
 }
@@ -633,7 +656,9 @@ Expected<void> LiteRtCompiledModelT::RegisterBuffer(
 
   // If the tensor is shared with CPU, register tensor buffer as is and let
   // accelerator handle the conversion.
-  if (cpu_tensors_.find(tensor) != cpu_tensors_.end()) {
+  LITERT_ASSIGN_OR_RETURN(const auto tensor_id,
+                          GetTensorIdentifier(*interp_, tensor));
+  if (cpu_tensors_.find(tensor_id) != cpu_tensors_.end()) {
     void* host_mem_addr;
     if (auto status = LiteRtLockTensorBuffer(
             buffer, &host_mem_addr, kLiteRtTensorBufferLockModeReadWrite);
@@ -739,6 +764,9 @@ Expected<void> LiteRtCompiledModelT::Run(
   }
 
   if (auto res = runner->AllocateTensors(); res != kTfLiteOk) {
+    if (error_reporter_) {
+      error_reporter_->Report("Failed to allocate tensors for execution");
+    }
     return Unexpected(kLiteRtStatusErrorRuntimeFailure,
                       "Failed to allocate tensors");
   }
@@ -921,3 +949,131 @@ Expected<bool> LiteRtCompiledModelT::InputTensorNeedsResize(
 
   return true;
 }
+
+litert::Expected<void> LiteRtCompiledModelT::ResizeInputTensor(
+    size_t signature_index, size_t input_index, absl::Span<const int> dims) {
+  if (signature_index >= signature_keys_.size()) {
+    return litert::Unexpected(
+        kLiteRtStatusErrorIndexOOB,
+        "Signature index is out of range of signature keys");
+  }
+
+  auto* runner = GetSignatureRunner(*signature_keys_[signature_index]);
+  if (runner == nullptr) {
+    return litert::Unexpected(kLiteRtStatusErrorInvalidArgument,
+                              "Failed to get signature runner");
+  }
+
+  const auto& input_names = runner->subgraph_input_names();
+  if (input_index >= input_names.size()) {
+    return litert::Unexpected(kLiteRtStatusErrorIndexOOB,
+                              "Input index out of range");
+  }
+
+  const auto& input_name = input_names[input_index];
+  auto* input_tensor = runner->input_tensor(input_name);
+  if (input_tensor == nullptr) {
+    return litert::Unexpected(kLiteRtStatusErrorNotFound,
+                              "Failed to get input tensor");
+  }
+
+  // Get current tensor shape.
+  const TfLiteIntArray* current_shape_array =
+      (input_tensor->dims_signature && input_tensor->dims_signature->size > 0)
+          ? input_tensor->dims_signature
+          : input_tensor->dims;
+
+  if (!current_shape_array) {
+    return litert::Unexpected(kLiteRtStatusErrorInvalidArgument,
+                              "Failed to get current shape.");
+  }
+  absl::Span<const int> current_shape =
+      absl::MakeConstSpan(current_shape_array->data, current_shape_array->size);
+
+  if (current_shape.size() != dims.size()) {
+    return litert::Unexpected(
+        kLiteRtStatusErrorInvalidArgument,
+        "New shape rank does not match current shape rank.");
+  }
+
+  // Check if the tensor has dynamic dimensions and if the new dims are
+  // compatible with the current one.
+  bool has_dynamic_shape = false;
+  for (size_t i = 0; i < current_shape.size(); ++i) {
+    if (current_shape[i] == -1) {
+      has_dynamic_shape = true;
+    } else if (current_shape[i] != dims[i]) {
+      return litert::Unexpected(
+          kLiteRtStatusErrorInvalidArgument,
+          "New shape is not compatible with current shape.");
+    }
+  }
+  if (!has_dynamic_shape) {
+    return litert::Unexpected(kLiteRtStatusErrorInvalidArgument,
+                              "Tensor does not have a dynamic shape.");
+  }
+
+  // Resize the input tensor using TFLite's SignatureRunner API
+  const auto status = runner->ResizeInputTensor(
+      input_name, std::vector<int>(dims.begin(), dims.end()));
+  if (status != kTfLiteOk) {
+    return litert::Unexpected(kLiteRtStatusErrorRuntimeFailure,
+                              "Failed to resize input tensor");
+  }
+
+  // Clear cached buffer requirements for this tensor
+  LITERT_ASSIGN_OR_RETURN(const auto tensor_id,
+                          GetTensorIdentifier(*interp_, input_tensor));
+  cpu_buffer_requirements_.erase(tensor_id);
+
+  return {};
+}
+
+// Error reporter APIs implementation
+
+void LiteRtCompiledModelT::ReportError(const char* format, ...) {
+  if (!error_reporter_) {
+    return;  // No error reporter configured
+  }
+
+  va_list args;
+  va_start(args, format);
+  error_reporter_->Report(format, args);
+  va_end(args);
+}
+
+Expected<void> LiteRtCompiledModelT::ClearErrors() {
+  if (!error_reporter_) {
+    return Unexpected(kLiteRtStatusErrorInvalidArgument,
+                      "No error reporter configured");
+  }
+
+  auto* buffer_reporter =
+      dynamic_cast<litert::BufferErrorReporter*>(error_reporter_.get());
+  if (!buffer_reporter) {
+    return Unexpected(
+        kLiteRtStatusErrorUnsupported,
+        "Clear errors is only available with buffer error reporter");
+  }
+
+  buffer_reporter->Clear();
+  return {};
+}
+
+Expected<std::string> LiteRtCompiledModelT::GetErrorMessages() {
+  if (!error_reporter_) {
+    return Unexpected(kLiteRtStatusErrorInvalidArgument,
+                      "No error reporter configured");
+  }
+
+  auto* buffer_reporter =
+      dynamic_cast<litert::BufferErrorReporter*>(error_reporter_.get());
+  if (!buffer_reporter) {
+    return Unexpected(
+        kLiteRtStatusErrorUnsupported,
+        "Get error messages is only available with buffer error reporter");
+  }
+
+  return buffer_reporter->message();
+}
+
