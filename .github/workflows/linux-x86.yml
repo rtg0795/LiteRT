@@ -79,7 +79,6 @@ jobs:
           echo "Cache Matched Key: ${{ steps.bazel-cache.outputs.cache-matched-key }}"
 
       - name: Run bazel script
-        env:
         run: |
           bash ci/run_bazel_test_with_docker.sh
 
