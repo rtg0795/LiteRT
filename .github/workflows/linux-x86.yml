@@ -33,8 +33,6 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          submodules: 'recursive'
 
       # Note: The original "Display submodule commit" step is now integrated into the step above.
 
