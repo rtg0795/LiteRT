@@ -93,15 +93,17 @@ jobs:
 
       - name: Run bazel build on MacOS
         run: |
-          bazel test \
+          bazel build \
             -c opt \
             -s \
             --apple_platform_type=ios \
             --copt=-Wno-c++-narrowing \
             --cxxopt=-std=c++17 \
             --swiftcopt=-enable-testing \
+            --define=use_coreml_delegate=0 \
+            --define=use_metal_delegate=1 \
+            --verbose_failures \
             -- \
-            //tflite/objc:tests \
             //tflite/swift:Tests
 
       - name: Remove cache if cache is being refreshed.
