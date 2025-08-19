@@ -32,6 +32,7 @@ jobs:
                          (github.event_name == 'workflow_dispatch' && inputs.REFRESH_CACHE) }}
       TF_LOCAL_SOURCE_PATH: "./third_party/tensorflow"
       TF_CONFIGURE_IOS: 1
+      HERMETIC_PYTHON_VERSION: "3.11"
       DEVELOPER_DIR: "/Applications/Xcode_15.4.app/Contents/Developer"
     steps:
       - name: Checkout code
@@ -82,7 +83,6 @@ jobs:
       - name: Configure tensorflow & python path
         run: |
           chmod +x configure.py
-          export HERMETIC_PYTHON_VERSION=3.12
           export PYTHON_BIN_PATH=$(which python3)
           export PYTHON_LIB_PATH=$(python3 -c 'import site; print(site.getsitepackages()[0])')
           export TF_NEED_ROCM=0
