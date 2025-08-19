@@ -19,5 +19,5 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="${SCRIPT_DIR}/.."
 
 export HERMETIC_PYTHON_VERSION="3.11"
-cd /root_dir
-bash /script_dir/run_bazel_test.sh
+cd ${ROOT_DIR}
+bash ${SCRIPT_DIR}/run_bazel_test.sh
