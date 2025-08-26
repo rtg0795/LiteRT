@@ -33,8 +33,10 @@ jobs:
       TF_LOCAL_SOURCE_PATH: "./third_party/tensorflow"
       TF_CONFIGURE_IOS: 1
       HERMETIC_PYTHON_VERSION: "3.11"
-      DEVELOPER_DIR: "/Applications/Xcode_15.4.app/Contents/Developer"
     steps:
+      - name: Set Xcode Developer Path
+        run: echo "DEVELOPER_DIR=$(xcode-select -p)" >> $GITHUB_ENV
+        
       - name: Checkout code
         uses: actions/checkout@v4
         with:
